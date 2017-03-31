@@ -41,10 +41,74 @@ scene.add(light);
 var objects = [];
 objects.push(mesh);
 
-var activeFace = null;
+var activeFaces = [];
+var extrudeVertices = [];
+var extrudeVerticesMap = [];
+var selectMultipleFaces = false;
 
 var raycaster = new THREE.Raycaster();
 var mouse = new THREE.Vector2();
+
+function checkNormal(face1, face2) {
+	console.log(face1.normal);
+	console.log(face2.normal);
+	return ((face1.normal.x == face2.normal.x) && (face1.normal.y == face2.normal.y) && (face1.normal.z == face2.normal.z));
+}
+
+function checkCommonVertices(aExtrudeVerticesMap, aFaceVertices) {
+	console.log(aExtrudeVerticesMap);
+	console.log(aFaceVertices);
+	var matchString = [];
+	var count = 0;
+	for (var i = 0; i < 3; i = i + 1) {
+		var temp;
+		if ((temp = aExtrudeVerticesMap[aFaceVertices[i]]) != undefined) {
+			matchString[count++] = temp;
+			//console.log(matchString);
+			//console.log(count);
+		}
+		else {
+			matchString[2] = i;
+			//console.log(aExtrudeVerticesMap[aFaceVertices[0]]);
+			//console.log(matchString);
+		}
+	}
+	//console.log(matchString);
+	//console.log(count);
+	return {result: (count == 2), matchString: (count == 2) ? matchString : []};
+}
+
+function arrangeVertices(aExtrudeVertices, aExtrudeVerticesMap, aFaceVertices, aMatchString) {
+	console.log(aExtrudeVertices);
+	console.log(aFaceVertices);
+	console.log(aMatchString);
+	if (!aExtrudeVertices.length) {
+		for (var i = 0; i < 3; i = i + 1) {
+			aExtrudeVertices.push(aFaceVertices[i]);
+			aExtrudeVerticesMap[aFaceVertices[i]] = i;
+		}
+	}
+	else {
+		var lower = (aMatchString[0] < aMatchString[1]) ? aMatchString[0] : aMatchString[1];
+		var upper = (aMatchString[0] > aMatchString[1]) ? aMatchString[0] : aMatchString[1];
+		if (!(lower == 0 && upper == aExtrudeVertices.length - 1)) {
+			var tempExtrudeVertices = [];
+			for (var i = upper; i < aExtrudeVertices.length; i = i + 1) {
+				tempExtrudeVertices.push(aExtrudeVertices[i]);
+			}
+			for (var i = 0; i <= lower; i = i + 1) {
+				tempExtrudeVertices.push(aExtrudeVertices[i]);
+			}
+			aExtrudeVertices = tempExtrudeVertices;
+		}
+		aExtrudeVertices.push(aFaceVertices[aMatchString[2]]);
+		for (var i = 0; i < aExtrudeVertices.length; i = i + 1) {
+			aExtrudeVerticesMap[aExtrudeVertices[i]] = i;
+		}
+	}
+	//console.log(aExtrudeVertices);
+	return {extrudeVertices: aExtrudeVertices, extrudeVerticesMap: aExtrudeVerticesMap};
+}
 
 function makeFace(indexa, indexb, indexc) {
     var face = new THREE.Face3(indexa, indexb, indexc);
@@ -54,7 +118,8 @@ function makeFace(indexa, indexb, indexc) {
     return face;
 }
 
-function extrude(face) {
+function extrude(aVertices, aNormal) {
+	/*
     var a = geometry.vertices[face.a];
     b = geometry.vertices[face.b];
     var c = geometry.vertices[face.c];
@@ -83,7 +148,28 @@ function extrude(face) {
     geometry.faces.push(makeFace(indexb, face.c, indexc));
     geometry.faces.push(makeFace(indexc, face.c, face.a));
     geometry.faces.push(makeFace(indexc, face.a, indexa));
+	*/
+	aVerticesClone = [];
+	for (var i = 0; i < aVertices.length; i = i + 1) {
+		aVerticesClone.push(geometry.vertices[aVertices[i]].clone());
+		aVerticesClone[i].add(aNormal);
+		geometry.vertices.push(aVerticesClone[i]);
+	}
 
+	var vertexStartIndex = geometry.vertices.length - aVertices.length;
+
+	for (var i = vertexStartIndex + 1; i < geometry.vertices.length - 1; i = i + 1) {
+		geometry.faces.push(makeFace(vertexStartIndex, i, i + 1));
+	}
+	for (i = vertexStartIndex, j = 0; i < geometry.vertices.length; i = i + 1, j = j + 1) {
+		if (i == geometry.vertices.length - 1) {
+			geometry.faces.push(makeFace(i, aVertices[j], aVertices[0]));
+			geometry.faces.push(makeFace(aVertices[0], vertexStartIndex, i));
+		} else {
+			geometry.faces.push(makeFace(i, aVertices[j], aVertices[j + 1]));
+			geometry.faces.push(makeFace(aVertices[j + 1], i + 1, i));
+		}
+	}
     geometry.computeFaceNormals();
     geometry.verticesNeedUpdate = true;
     geometry.elementsNeedUpdate = true;
@@ -91,15 +177,47 @@ function extrude(face) {
     geometry.colorsNeedUpdate = true;
 }
 
+var rotateX = 0;
+var rotateZ = 0;
+var rotateY = 0;
+
 function onKeyDown(event) {
     switch (event.keyCode) {
         case 69:
-            if (activeFace == null) return;
-            extrude(activeFace);
+            if (!activeFaces.length) return;
+            extrude(extrudeVertices, activeFaces[activeFaces.length - 1].normal);
+            activeFaces = [];
+            extrudeVertices = [];
+            extrudeVerticesMap = [];
             break;
+        case 17:
+        	selectMultipleFaces = true;
+        	//console.log(selectMultipleFaces);
+        	break;
+        case 88:
+        	rotateX = 0.1;
+        	break;
+        case 89:
+        	rotateY = 0.1;
+        	break;
+        case 90:
+        	rotateZ = 0.1;
+        	break;
+        case 77:
+        	rotateX = rotateY = rotateZ = 0;
+        	break;
     }
 }
 window.addEventListener('keydown', onKeyDown, false);
+
+function onKeyUp(event) {
+	switch(event.keyCode) {
+		case 17:
+			selectMultipleFaces = false;
+			break;
+	}
+}
+window.addEventListener('keyup', onKeyUp, false);
 
 function onMouseMove(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -115,18 +233,39 @@ function onMouseDown(event) {
     }
     var intersect = intersects[0];
     var face = intersect.face;
-    activeFace = face;
-    setDefaultVertexColors(geometry);
+    var checkCommonVerticesResult = {result: false, matchString: []};
+    if (!selectMultipleFaces || !activeFaces.length) {
+    	activeFaces = [];
+    	extrudeVertices = [];
+    	extrudeVerticesMap = [];
+    	setDefaultVertexColors(geometry);
+    }
+    else {
+    	checkCommonVerticesResult = checkCommonVertices(extrudeVerticesMap, [face.a, face.b, face.c]);
+    	if (!(checkNormal(activeFaces[0], face) && 
+    		  checkCommonVerticesResult.result)) {
+    		return;
+    	}
+    }
+	activeFaces.push(face);
     face.vertexColors[0].setRGB(1, 0.7, 0.7);
     face.vertexColors[1].setRGB(1, 0.7, 0.7);
     face.vertexColors[2].setRGB(1, 0.7, 0.7);
     geometry.colorsNeedUpdate = true;
-
+    var arrangeVerticesResult = arrangeVertices(extrudeVertices, extrudeVerticesMap,
+    	[face.a, face.b, face.c],
+    	checkCommonVerticesResult.matchString);
+    extrudeVertices = arrangeVerticesResult.extrudeVertices;
+    extrudeVerticesMap = arrangeVerticesResult.extrudeVerticesMap;
+    console.log(extrudeVertices);
+    console.log(extrudeVerticesMap);
 }
 window.addEventListener('mousedown', onMouseDown, false);
 
 function animate() {
-    mesh.rotation.x += 0.01;
+    mesh.rotation.x += rotateX;
+    mesh.rotation.y += rotateY;
+    mesh.rotation.z += rotateZ;
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
 }
