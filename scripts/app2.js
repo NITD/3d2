@@ -119,36 +119,6 @@ function makeFace(indexa, indexb, indexc) {
 }
 
 function extrude(aVertices, aNormal) {
-	/*
-    var a = geometry.vertices[face.a];
-    b = geometry.vertices[face.b];
-    var c = geometry.vertices[face.c];
-    var aclone = a.clone();
-    var bclone = b.clone();
-    var cclone = c.clone();
-    var normal = face.normal;
-    console.log(normal);
-
-    aclone.add(normal);
-    bclone.add(normal);
-    cclone.add(normal);
-
-    geometry.vertices.push(aclone);
-    geometry.vertices.push(bclone);
-    geometry.vertices.push(cclone);
-
-    var indexa = geometry.vertices.length - 3;
-    var indexb = indexa + 1;
-    var indexc = indexa + 2;
-
-    geometry.faces.push(makeFace(indexa, indexb, indexc));
-    geometry.faces.push(makeFace(indexa, face.a, face.b));
-    geometry.faces.push(makeFace(indexa, face.b, indexb));
-    geometry.faces.push(makeFace(indexb, face.b, face.c));
-    geometry.faces.push(makeFace(indexb, face.c, indexc));
-    geometry.faces.push(makeFace(indexc, face.c, face.a));
-    geometry.faces.push(makeFace(indexc, face.a, indexa));
-	*/
 	aVerticesClone = [];
 	for (var i = 0; i < aVertices.length; i = i + 1) {
 		aVerticesClone.push(geometry.vertices[aVertices[i]].clone());
@@ -157,10 +127,16 @@ function extrude(aVertices, aNormal) {
 	}
 
 	var vertexStartIndex = geometry.vertices.length - aVertices.length;
-
+    for (var i = 0; i < activeFaces.length; i = i + 1) {
+        var a = vertexStartIndex + extrudeVerticesMap[activeFaces[i].a];
+        var b = vertexStartIndex + extrudeVerticesMap[activeFaces[i].b];
+        var c = vertexStartIndex + extrudeVerticesMap[activeFaces[i].c];
+        geometry.faces.push(makeFace(a, b, c));
+    }
+    /*
 	for (var i = vertexStartIndex + 1; i < geometry.vertices.length - 1; i = i + 1) {
 		geometry.faces.push(makeFace(vertexStartIndex, i, i + 1));
-	}
+	}*/
 	for (i = vertexStartIndex, j = 0; i < geometry.vertices.length; i = i + 1, j = j + 1) {
 		if (i == geometry.vertices.length - 1) {
 			geometry.faces.push(makeFace(i, aVertices[j], aVertices[0]));
